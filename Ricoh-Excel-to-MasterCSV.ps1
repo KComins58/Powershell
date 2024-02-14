@@ -2,7 +2,7 @@
 #requires -module ImportExcel
 
 $todayDate = Get-Date -Format "MMddyyyy"
-$date = Get-Date -Format "yyyy-MM-dd HH-mm" #Current date/time in the format that textfiles will be named in
+$date = Get-Date -Format "MM/dd/yyyy HH:mm:ss" #Current date/time in the format that textfiles will be named in
 $csvFileName = "C:\Users\Administrator\Desktop\CopierAddress\ADDRESSBOOK$todayDate.csv"
 $importfile = "C:\Users\Administrator\Desktop\CopierAddress\COPIER_MASTER_ADDRESS_LIST.xlsx"
 
@@ -13,39 +13,50 @@ if (Test-Path $csvFileName) {
 
 function Process-Row {
     param(
+        [int]$iCount,
         [string]$Column1,
         [string]$Column2,
         [string]$Column3,
-        [string]$Column4,
-        [string]$Column5,
-        [string]$Column6
+        [string]$Column4
     )
 
     # Remove double quotes from input variables
-    $Column1 = $Column1 -replace '"'
-    $Column2 = $Column2 -replace '"'
+    $Column1 = $Column1.ToUpper() -replace '"'
+    $Column2 = $Column2.ToUpper() -replace '"'
     $Column3 = $Column3 -replace '"'
     $Column4 = $Column4 -replace '"'
-    $Column5 = $Column5 -replace '"'
-    $Column6 = $Column6 -replace '"'
-    
-    switch -Regex ($Column3[2]) {
-    "^[A-B]" {$K = "[1]"}
-    "^[C-D]" {$K = "[2]"}
-    "^[E-F]" {$K = "[3]"}
-    "^[G-H]" {$K = "[4]"}
-    "^[I-K]" {$K = "[5]"}
-    "^[L-N]" {$K = "[6]"}
-    "^[O-Q]" {$K = "[7]"}
-    "^[R-T]" {$K = "[8]"}
-    "^[U-W]" {$K = "[9]"}
-    "^[X-Z]" {$K = "[10]"}
+
+    while ($Column3.Length -lt 4)
+    {
+        $Column3 = "0$Column3"
+    }
+
+
+    $sName = "$Column1 $Column2"
+    $sUsername = $Column1[0] +" $Column2" -replace " "
+    $sEmail = $sUsername.ToLower()+"@email.com"
+
+    if ($Column4 -eq 'teacher') {
+        $sPath = "\\fscluster1\teacher$\"+$sUsername.ToLower()+"\Documents\scan"
+    } else { $sPath = "\\fscluster1\office$\"+$sUsername.ToLower()+"\Documents\scan" }
+
+    switch -Regex ($Column2[0]) {
+    "^[A-B]" {$K = "1"}
+    "^[C-D]" {$K = "2"}
+    "^[E-F]" {$K = "3"}
+    "^[G-H]" {$K = "4"}
+    "^[I-K]" {$K = "5"}
+    "^[L-N]" {$K = "6"}
+    "^[O-Q]" {$K = "7"}
+    "^[R-T]" {$K = "8"}
+    "^[U-W]" {$K = "9"}
+    "^[X-Z]" {$K = "10"}
     }
 
     $processedRow = @(
-        "$Column1,$Column2,[1],[0],$Column1,[U],[],$Column3,[1],[1],$K,[0],[0],[0],[1],$Column4,[1],[],[],"+
+        "[$iCount],[$sName],[1],[0],[$iCount],[U],[],[$sUsername],[1],[1],[$K],[0],[0],[0],[1],[$Column3],[1],[],[],"+
         "[omitted],[0],[],[],[omitted],[0],[],[],[omitted],[0],[],[],[omitted],[0],[],[],[],[],[],[],[],[],"+
-        "[],[],[-1],[1],[],[g3],[],$Column5,[],[0],[],[],[1],[],[],[0],[1],[0],[21],[],$Column6,[us-ascii],"+
+        "[],[],[-1],[1],[],[g3],[],[$sEmail],[],[0],[],[],[1],[],[],[0],[1],[0],[21],[],[$sPath],[us-ascii],"+
         "[1],[1],[0],[0],[0],[],[omitted],[],[],[1],[],[0],[],[],[],[]"
     )
 
@@ -65,11 +76,21 @@ Index in ACLs and Groups,Name,Set General Settings,Set Registration No.,Registra
 
 $header | Out-File -FilePath $csvFileName
 
-$importedData = Import-Excel -Path $importfile -WorksheetName "Sheet3"
+$importedData = Import-Excel -Path $importfile -WorksheetName "Sheet2"
+
+$iCount = 1
 
 $importedData | ConvertTo-Csv -NoTypeInformation | Select-Object -Skip 1 | ForEach-Object {
     $row = $_
     $rowValues = $row.Split(',')
-    $processedRow = Process-Row -Column1 $rowValues[0] -Column2 $rowValues[1] -Column3 $rowValues[2] -Column4 $rowValues[3] -Column5 $rowValues[4] -Column6 $rowValues[5]
-    $processedRow -join ','
-} | Out-File -FilePath $csvFileName -Append
+    
+    # Check if the first column is empty
+    if (-not [string]::IsNullOrWhiteSpace($rowValues[0])) {
+        $processedRow = Process-Row -iCount $iCount -Column1 $rowValues[0] -Column2 $rowValues[1] -Column3 $rowValues[2] -Column4 $rowValues[3]
+        $processedRow -join ',' | Out-File -FilePath $csvFileName -Append
+        $iCount += 1
+    } else {
+        # Exit the loop if the first column is empty
+        break
+    }
+}
